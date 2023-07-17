@@ -1,0 +1,105 @@
+---
+title: "analysis_nyc"
+author: "Patrick Spauster"
+date: "7/17/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(RSocrata)
+
+```
+
+```{r}
+
+crashes_people <- read.socrata("https://data.cityofnewyork.us/resource/f55k-p6yu.csv")
+
+```
+
+number of people involved per crash
+```{r}
+crashes_people %>% 
+  group_by(collision_id) %>% 
+  summarize(people = n()) %>% 
+  count(people)
+```
+missing age for drivers ~ 10k
+```{r}
+count(crashes_people, missing_age = is.na(person_age), driver = person_type == "Occupant" & ped_role == "Driver")
+```
+
+
+```{r}
+crashes_drivers <- crashes_people %>% 
+  rename(person_role = ped_role) %>% 
+  mutate(driver = case_when(
+    person_type == "Occupant" & person_role == "Driver" ~ T,
+    T~F
+  )) %>% 
+  group_by(collision_id) %>% 
+  arrange(collision_id, driver) %>% 
+  mutate(driver_no = if_else(driver == T, row_number(), NA_integer_))
+
+crashes_drivers_sum <- crashes_drivers %>% 
+  group_by(collision_id, driver_no) %>% 
+  summarize(crash_date = first(crash_date),
+            people = n(),
+            people_id_count = max(person_id), 
+            vehicles = unique(vehicle_id[!is.na(vehicle_id)]),
+            occupants = sum(person_type == "Occupant"),
+            drivers = sum(driver == T),
+            injured = sum(person_injury == "Injured"),
+            killed = sum(person_injury == "Killed"),
+            occupants_injured = sum(person_injury == "Injured" & person_type == "Occupant"),
+            occupants_killed = sum(person_injury == "Killed" & person_type == "Occupant"),
+            cyclists_killed = sum(person_injury == "Killed" & person_type == "Bicyclist"),
+            cyclists_injured = sum(person_injury == "Injured" & person_type == "Bicyclist"),
+            peds_killed = sum(person_injury == "Killed" & person_type == "Pedestrian"),
+            peds_injured = sum(person_injury == "Injured" & person_type == "Pedestrian"),
+            driver_age = person_age[driver == T],
+            allreasons = paste(contributing_factor_1, collapse=", "),
+            allreasons2 = paste(contributing_factor_2, collapse=", ")
+            ) %>% 
+  filter(!is.na(driver))
+
+saveRDS(crashes_drivers_sum, "collision_driver_level_summary.rds")
+```
+
+
+
+```{r}
+crash_sum <- crashes_people %>% 
+  group_by(collision_id) %>% 
+  summarize(people = n(),
+            occupants = sum(person_type == "Occupant"),
+            driver = sum(position_in_vehicle == "Driver"))
+
+crash_sum %>% count(people == 1, occupants == 0, driver == 0)
+```
+
+crashes by year
+
+all crashes
+
+crashes with injuries
+
+crashes with injuries to bikes and peds
+
+crashes with deaths
+
+crashes with deaths to bikes and peds
+
+
+
+
+age of drivers involved in all crashes over time
+
+
+age of drivers involved in crashes with injuries over time
+
+
+age of drivers involved in crasehs with fatalities over time
+
