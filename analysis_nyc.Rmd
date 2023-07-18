@@ -40,7 +40,7 @@ crashes_drivers <- crashes_people %>%
     T~F
   )) %>% 
   group_by(collision_id) %>% 
-  arrange(collision_id, driver) %>% 
+  arrange(driver) %>% 
   mutate(driver_no = if_else(driver == T, row_number(), NA_integer_))
 
 crashes_drivers_sum <- crashes_drivers %>% 
@@ -59,7 +59,7 @@ crashes_drivers_sum <- crashes_drivers %>%
             cyclists_injured = sum(person_injury == "Injured" & person_type == "Bicyclist"),
             peds_killed = sum(person_injury == "Killed" & person_type == "Pedestrian"),
             peds_injured = sum(person_injury == "Injured" & person_type == "Pedestrian"),
-            driver_age = person_age[driver == T],
+            driver_age = first(person_age[driver == T]),
             allreasons = paste(contributing_factor_1, collapse=", "),
             allreasons2 = paste(contributing_factor_2, collapse=", ")
             ) %>% 
