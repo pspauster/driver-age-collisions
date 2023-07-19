@@ -10,14 +10,148 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(RSocrata)
+library(soql)
+
+options(scipen = 999)
 
 ```
 
 ```{r}
 
-crashes_people <- read.socrata("https://data.cityofnewyork.us/resource/f55k-p6yu.csv")
+#crashes_people <- read.socrata("https://data.cityofnewyork.us/resource/f55k-p6yu.csv")
+
+crashes_drivers <- read.socrata("https://data.cityofnewyork.us/resource/f55k-p6yu.csv?person_type=Occupant&ped_role=Driver")
+
+crashes_stats <- read.socrata("https://data.cityofnewyork.us/resource/h9gi-nx95.csv")
+
 
 ```
+
+```{r}
+
+drivers_age_sum <- crashes_drivers %>% 
+  group_by(collision_id) %>% 
+  summarize(max_age = max(person_age, na.rm = T)) %>% 
+  mutate(max_age = ifelse(max_age == -Inf, NA, max_age))
+
+crashes_stats_clean <- crashes_stats %>% 
+  left_join(drivers_age_sum, by = "collision_id") %>% 
+  mutate(year = lubridate::year(crash_date))
+
+```
+
+
+```{r}
+
+crashes_stats_clean %>% 
+  filter(!is.na(max_age)) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            crashes = n(),
+            senior_driver = sum(max_age >= 65, na.rm = T),
+            old_driver = sum(max_age >= 55, na.rm = T),
+            ) %>% 
+  mutate(per_senior = senior_driver/crashes,
+         per_old = old_driver/crashes)
+
+crashes_stats_clean %>% 
+  filter(!is.na(max_age)) %>% 
+  group_by(year) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            crashes = n(),
+            senior_driver = sum(max_age >= 65, na.rm = T),
+            old_driver = sum(max_age >= 55, na.rm = T)
+            )%>% 
+  mutate(per_senior = senior_driver/crashes,
+         per_old = old_driver/crashes)
+```
+
+```{r}
+
+crashes_stats_clean %>% 
+  filter(!is.na(max_age), number_of_persons_injured > 0) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            median_age_driver = median(max_age, na.rm = T),
+            crashes = n(),
+            senior_driver = sum(max_age >= 65, na.rm = T),
+            old_driver = sum(max_age >= 55, na.rm = T),
+            ) %>% 
+  mutate(per_senior = senior_driver/crashes,
+         per_old = old_driver/crashes)
+
+crashes_stats_clean %>% 
+  filter(!is.na(max_age), number_of_persons_injured > 0) %>% 
+  group_by(year) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            median_age_driver = median(max_age, na.rm = T),
+            crashes = n(),
+            senior_driver = sum(max_age >= 65, na.rm = T),
+            old_driver = sum(max_age >= 55, na.rm = T)
+            )%>% 
+  mutate(per_senior = senior_driver/crashes,
+         per_old = old_driver/crashes)
+
+
+```
+
+
+```{r}
+crashes_stats_clean %>% 
+  filter(!is.na(max_age), number_of_persons_killed > 0) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            median_age_driver = median(max_age, na.rm = T),
+            crashes = n(),
+            senior_driver = sum(max_age >= 65, na.rm = T),
+            old_driver = sum(max_age >= 55, na.rm = T),
+            ) %>% 
+  mutate(per_senior = senior_driver/crashes,
+         per_old = old_driver/crashes)
+
+crashes_stats_clean %>% 
+  filter(!is.na(max_age), number_of_persons_killed > 0) %>% 
+  group_by(year) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            median_age_driver = median(max_age, na.rm = T),
+            crashes = n(),
+            senior_driver = sum(max_age >= 65, na.rm = T),
+            old_driver = sum(max_age >= 55, na.rm = T)
+            )%>% 
+  mutate(per_senior = senior_driver/crashes,
+         per_old = old_driver/crashes)
+```
+
+```{r}
+crashes_stats_clean %>% 
+  filter(!is.na(max_age)) %>% 
+  group_by(max_age > 55) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            crashes = n(),
+            injury_crashes = sum(number_of_persons_injured > 0, na.rm = T),
+            killing_crashes = sum(number_of_persons_killed >0, na.rm = T)
+            ) %>% 
+  mutate(per_injury = injury_crashes/crashes,
+         per_kill = killing_crashes/crashes)
+
+under_over_by_year <- crashes_stats_clean %>% 
+  filter(!is.na(max_age)) %>% 
+  group_by(max_age > 55, year) %>% 
+  summarize(mean_age_driver = mean(max_age, na.rm = T),
+            crashes = n(),
+            injury_crashes = sum(number_of_persons_injured > 0, na.rm = T),
+            killing_crashes = sum(number_of_persons_killed >0, na.rm = T)
+            ) %>% 
+  mutate(per_injury = injury_crashes/crashes,
+         per_kill = killing_crashes/crashes) 
+```
+
+```{r}
+
+under_over_by_year %>% 
+  ggplot()+
+  geom_line(mapping = aes(x= year, y = per_injury, color = `max_age > 55`))
+
+
+```
+
 
 number of people involved per crash
 ```{r}
@@ -45,25 +179,25 @@ crashes_drivers <- crashes_people %>%
 
 crashes_drivers_sum <- crashes_drivers %>% 
   group_by(collision_id, driver_no) %>% 
-  summarize(crash_date = first(crash_date),
-            people = n(),
-            people_id_count = max(person_id), 
-            vehicles = unique(vehicle_id[!is.na(vehicle_id)]),
-            occupants = sum(person_type == "Occupant"),
-            drivers = sum(driver == T),
-            injured = sum(person_injury == "Injured"),
-            killed = sum(person_injury == "Killed"),
-            occupants_injured = sum(person_injury == "Injured" & person_type == "Occupant"),
-            occupants_killed = sum(person_injury == "Killed" & person_type == "Occupant"),
-            cyclists_killed = sum(person_injury == "Killed" & person_type == "Bicyclist"),
-            cyclists_injured = sum(person_injury == "Injured" & person_type == "Bicyclist"),
-            peds_killed = sum(person_injury == "Killed" & person_type == "Pedestrian"),
-            peds_injured = sum(person_injury == "Injured" & person_type == "Pedestrian"),
+  summarize(#crash_date = first(crash_date),
+            # people = n(),
+            # people_id_count = max(person_id), 
+             vehicles = unique(vehicle_id[!is.na(vehicle_id)]),
+            # occupants = sum(person_type == "Occupant"),
+             drivers = sum(driver == T),
+            # injured = sum(person_injury == "Injured"),
+            # killed = sum(person_injury == "Killed"),
+            # occupants_injured = sum(person_injury == "Injured" & person_type == "Occupant"),
+            # occupants_killed = sum(person_injury == "Killed" & person_type == "Occupant"),
+            # cyclists_killed = sum(person_injury == "Killed" & person_type == "Bicyclist"),
+            # cyclists_injured = sum(person_injury == "Injured" & person_type == "Bicyclist"),
+            # peds_killed = sum(person_injury == "Killed" & person_type == "Pedestrian"),
+            # peds_injured = sum(person_injury == "Injured" & person_type == "Pedestrian"),
             driver_age = first(person_age[driver == T]),
-            allreasons = paste(contributing_factor_1, collapse=", "),
-            allreasons2 = paste(contributing_factor_2, collapse=", ")
+            # allreasons = paste(contributing_factor_1, collapse=", "),
+            # allreasons2 = paste(contributing_factor_2, collapse=", ")
             ) %>% 
-  filter(!is.na(driver))
+  filter(!is.na(driver_no))
 
 saveRDS(crashes_drivers_sum, "collision_driver_level_summary.rds")
 ```
@@ -73,9 +207,23 @@ saveRDS(crashes_drivers_sum, "collision_driver_level_summary.rds")
 ```{r}
 crash_sum <- crashes_people %>% 
   group_by(collision_id) %>% 
-  summarize(people = n(),
-            occupants = sum(person_type == "Occupant"),
-            driver = sum(position_in_vehicle == "Driver"))
+  summarize(crash_date = first(crash_date),
+             people = n(),
+             people_id_count = max(person_id),
+             #vehicles = unique(vehicle_id[!is.na(vehicle_id)]),
+             occupants = sum(person_type == "Occupant"),
+             #drivers = sum(driver == T),
+             injured = sum(person_injury == "Injured"),
+             killed = sum(person_injury == "Killed"),
+             occupants_injured = sum(person_injury == "Injured" & person_type == "Occupant"),
+             occupants_killed = sum(person_injury == "Killed" & person_type == "Occupant"),
+             cyclists_killed = sum(person_injury == "Killed" & person_type == "Bicyclist"),
+             cyclists_injured = sum(person_injury == "Injured" & person_type == "Bicyclist"),
+             peds_killed = sum(person_injury == "Killed" & person_type == "Pedestrian"),
+             peds_injured = sum(person_injury == "Injured" & person_type == "Pedestrian"),
+            #driver_age = first(person_age[driver == T]),
+             allreasons = paste(contributing_factor_1, collapse=", "),
+             allreasons2 = paste(contributing_factor_2, collapse=", "))
 
 crash_sum %>% count(people == 1, occupants == 0, driver == 0)
 ```
