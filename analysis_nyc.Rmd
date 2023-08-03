@@ -47,22 +47,26 @@ crashes_stats_clean %>%
   filter(!is.na(max_age)) %>% 
   summarize(mean_age_driver = mean(max_age, na.rm = T),
             crashes = n(),
+            seventy_driver = sum(max_age >= 70, na.rm = T),
             senior_driver = sum(max_age >= 65, na.rm = T),
             old_driver = sum(max_age >= 55, na.rm = T),
             ) %>% 
   mutate(per_senior = senior_driver/crashes,
-         per_old = old_driver/crashes)
+         per_old = old_driver/crashes,
+         per_seventy = seventy_driver/crashes)
 
 crashes_stats_clean %>% 
   filter(!is.na(max_age)) %>% 
   group_by(year) %>% 
   summarize(mean_age_driver = mean(max_age, na.rm = T),
             crashes = n(),
+            seventy_driver = sum(max_age >= 70, na.rm = T),
             senior_driver = sum(max_age >= 65, na.rm = T),
             old_driver = sum(max_age >= 55, na.rm = T)
             )%>% 
   mutate(per_senior = senior_driver/crashes,
-         per_old = old_driver/crashes)
+         per_old = old_driver/crashes,
+         per_seventy = seventy_driver/crashes)
 ```
 
 ```{r}
