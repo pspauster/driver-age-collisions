@@ -1,0 +1,40 @@
+---
+title: "analysis national"
+author: "Patrick Spauster"
+date: "2023-08-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(readxl)
+library(rvest)
+library(janitor)
+```
+```{r}
+
+lisenced_drivers <- read_excel("fhwa_dl220_driveragesex.xls", skip = 9, n_max = 60, na = "-")
+
+```
+```{r}
+url <- "https://www.fhwa.dot.gov/policyinformation/statistics/2021/dl220.cfm"
+
+# Read the HTML content of the page
+webpage <- read_html(url)
+
+# Find the table on the page (you may need to inspect the page source to get the correct CSS selector)
+table_selector <- "table.datatable"  # Replace with the appropriate CSS selector for your table
+table <- html_table(html_nodes(webpage, table_selector), header = TRUE)
+
+names <- paste(names(table[[1]]), table[[1]][1, ], sep = "_")
+
+lisenced_drivers_clean <- setNames(object = lisenced_drivers, names) %>%
+  clean_names() %>% 
+  # rename(under16_male = ,
+  #        under16_female = ,
+  #        under16_total)
+  pivot_longer(cols = -year_year, names_to = "age", values_to = "no_drivers")
+```
+
